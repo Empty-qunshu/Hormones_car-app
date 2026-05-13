@@ -1,0 +1,9 @@
+{
+  "src": [
+    "pages/Index",
+    "pages/Splash",
+    "pages/Home",
+    "pages/BindCar",
+    "pages/BindSuccess"
+  ]
+}
