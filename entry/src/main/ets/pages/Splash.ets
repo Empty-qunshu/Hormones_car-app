@@ -1,4 +1,5 @@
 import router from '@ohos.router';
+import { AppRoutes } from './AppConstants';
 
 @Entry
 @Component
@@ -80,7 +81,7 @@ struct Splash {
     }
 
     router.replaceUrl({
-      url: 'pages/Index'
+      url: AppRoutes.INDEX
     }).catch(() => {
     });
   }

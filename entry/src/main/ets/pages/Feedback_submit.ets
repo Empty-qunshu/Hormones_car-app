@@ -1,7 +1,9 @@
 import router from '@ohos.router';
 import preferences from '@ohos.data.preferences';
-import { promptAction } from '@kit.ArkUI';
+import { AppRoutes, PreferenceKeys, USER_STORE_NAME } from './AppConstants';
+import { AppPrompt } from './AppPrompt';
 import { AddFeedbackParams, AuthApi } from './AuthApi';
+import { FeedbackTag } from './CommonWidgets';
 
 @Component
 export struct Feedback_submit {
@@ -40,15 +42,45 @@ export struct Feedback_submit {
               .width('100%');
 
             Row({ space: 8 }) {
-              this.tagItem('车辆控制');
-              this.tagItem('空调');
-              this.tagItem('绑定车辆');
+              FeedbackTag({
+                tag: '车辆控制',
+                selected: this.selectedTag === '车辆控制',
+                onSelect: (tag: string) => {
+                  this.selectTag(tag);
+                }
+              });
+              FeedbackTag({
+                tag: '空调',
+                selected: this.selectedTag === '空调',
+                onSelect: (tag: string) => {
+                  this.selectTag(tag);
+                }
+              });
+              FeedbackTag({
+                tag: '绑定车辆',
+                selected: this.selectedTag === '绑定车辆',
+                onSelect: (tag: string) => {
+                  this.selectTag(tag);
+                }
+              });
             }
             .width('100%');
 
             Row({ space: 8 }) {
-              this.tagItem('页面体验');
-              this.tagItem('数据异常');
+              FeedbackTag({
+                tag: '页面体验',
+                selected: this.selectedTag === '页面体验',
+                onSelect: (tag: string) => {
+                  this.selectTag(tag);
+                }
+              });
+              FeedbackTag({
+                tag: '数据异常',
+                selected: this.selectedTag === '数据异常',
+                onSelect: (tag: string) => {
+                  this.selectTag(tag);
+                }
+              });
             }
             .width('100%');
           }
@@ -136,24 +168,6 @@ export struct Feedback_submit {
     .backgroundColor('#F5F7FA');
   }
 
-  @Builder
-  tagItem(tag: string) {
-    Text(tag)
-      .fontSize(13)
-      .fontColor(this.selectedTag === tag ? '#062027' : '#6B7280')
-      .textAlign(TextAlign.Center)
-      .height(36)
-      .layoutWeight(1)
-      .backgroundColor(this.selectedTag === tag ? '#DDF7F4' : '#F9FAFB')
-      .borderRadius(8)
-      .onClick(() => {
-        this.selectedTag = tag;
-        if (this.title.length === 0) {
-          this.title = tag;
-        }
-      });
-  }
-
   private async submitFeedback(): Promise<void> {
     const title = this.title.trim();
     const content = this.content.trim();
@@ -170,22 +184,22 @@ export struct Feedback_submit {
 
     this.isSubmitting = true;
     try {
-      const pref = await preferences.getPreferences(getContext(this), 'userStore');
-      const token = pref.getSync('token', '') as string;
-      const userId = pref.getSync('userId', '') as string;
-      const userName = pref.getSync('username', '') as string;
-      const nickName = pref.getSync('nickName', '') as string;
-      const phonenumber = pref.getSync('phonenumber', '') as string;
+      const pref = await preferences.getPreferences(getContext(this), USER_STORE_NAME);
+      const token = pref.getSync(PreferenceKeys.TOKEN, '') as string;
+      const userId = pref.getSync(PreferenceKeys.USER_ID, '') as string;
+      const userName = pref.getSync(PreferenceKeys.USERNAME, '') as string;
+      const nickName = pref.getSync(PreferenceKeys.NICK_NAME, '') as string;
+      const phonenumber = pref.getSync(PreferenceKeys.PHONE_NUMBER, '') as string;
 
       if (token.length === 0) {
         this.showToast('登录状态已失效，请重新登录');
-        router.replaceUrl({ url: 'pages/Index' });
+        router.replaceUrl({ url: AppRoutes.INDEX });
         return;
       }
 
       if (userId.length === 0) {
         this.showToast('用户信息缺失，请重新登录');
-        router.replaceUrl({ url: 'pages/Index' });
+        router.replaceUrl({ url: AppRoutes.INDEX });
         return;
       }
 
@@ -226,18 +240,18 @@ export struct Feedback_submit {
     }
   }
 
+  private selectTag(tag: string): void {
+    this.selectedTag = tag;
+    if (this.title.length === 0) {
+      this.title = tag;
+    }
+  }
+
   private showToast(message: string): void {
-    promptAction.openToast({
-      message,
-      duration: 2000
-    }).catch(() => {
-    });
+    AppPrompt.showToast(message);
   }
 
   private getErrorMessage(error: Object): string {
-    if (error instanceof Error) {
-      return error.message;
-    }
-    return '操作失败，请稍后重试';
+    return AppPrompt.getErrorMessage(error);
   }
 }

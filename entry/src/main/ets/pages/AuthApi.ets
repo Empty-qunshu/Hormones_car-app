@@ -1,7 +1,7 @@
 import { http } from '@kit.NetworkKit';
 
-// const BASE_URL: string = 'http://121.36.14.143:10001';
-const BASE_URL: string = 'http://192.168.1.100:8088';
+const BASE_URL: string = 'http://121.36.14.143:10001';
+// const BASE_URL: string = 'http://192.168.1.100:8088';
 
 export interface BaseResult {
   code?: number;

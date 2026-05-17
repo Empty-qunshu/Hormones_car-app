@@ -1,6 +1,7 @@
 import router from '@ohos.router';
 import preferences from '@ohos.data.preferences';
-import { promptAction } from '@kit.ArkUI';
+import { AppRoutes, PreferenceKeys, USER_STORE_NAME } from './AppConstants';
+import { AppPrompt } from './AppPrompt';
 import { Feedback_submit } from './Feedback_submit';
 import { Feedback_details } from './Feedback_details';
 import {
@@ -81,29 +82,29 @@ struct Home {
   navPathStack: NavPathStack = new NavPathStack();
 
   aboutToAppear() {
-    preferences.getPreferences(getContext(this), 'userStore')
+    preferences.getPreferences(getContext(this), USER_STORE_NAME)
       .then((pref) => {
-        const isLogin = pref.getSync('isLogin', false) as boolean;
-        const isCarBound = pref.getSync('isCarBound', false) as boolean;
+        const isLogin = pref.getSync(PreferenceKeys.IS_LOGIN, false) as boolean;
+        const isCarBound = pref.getSync(PreferenceKeys.IS_CAR_BOUND, false) as boolean;
 
         if (!isLogin) {
-          router.replaceUrl({ url: 'pages/Index' });
+          router.replaceUrl({ url: AppRoutes.INDEX });
           return;
         }
 
         if (!isCarBound) {
-          router.replaceUrl({ url: 'pages/BindCar' });
+          router.replaceUrl({ url: AppRoutes.BIND_CAR });
           return;
         }
 
-        this.token = pref.getSync('token', '') as string;
-        this.userId = pref.getSync('userId', '') as string;
-        this.userName = pref.getSync('username', '') as string;
-        this.nickName = pref.getSync('nickName', '') as string;
-        this.phonenumber = pref.getSync('phonenumber', '') as string;
-        this.birthDate = pref.getSync('birthDate', '') as string;
-        this.carId = pref.getSync('carId', '') as string;
-        this.carVin = pref.getSync('carVin', '') as string;
+        this.token = pref.getSync(PreferenceKeys.TOKEN, '') as string;
+        this.userId = pref.getSync(PreferenceKeys.USER_ID, '') as string;
+        this.userName = pref.getSync(PreferenceKeys.USERNAME, '') as string;
+        this.nickName = pref.getSync(PreferenceKeys.NICK_NAME, '') as string;
+        this.phonenumber = pref.getSync(PreferenceKeys.PHONE_NUMBER, '') as string;
+        this.birthDate = pref.getSync(PreferenceKeys.BIRTH_DATE, '') as string;
+        this.carId = pref.getSync(PreferenceKeys.CAR_ID, '') as string;
+        this.carVin = pref.getSync(PreferenceKeys.CAR_VIN, '') as string;
 
         this.refreshAll();
         this.startVehicleStatePolling();
@@ -810,35 +811,28 @@ struct Home {
   directionPanel() {
     Stack({ alignContent: Alignment.Center }) {
       Image(this.getDirectionImage())
-        .width(156)
-        .height(156)
+        .width(128)
+        .height(128)
         .objectFit(ImageFit.Contain)
         .shadow({ radius: 10, color: '#0000000A', offsetX: 0, offsetY: 4 });
 
-      this.directionPadButton('▲', 'up', 60, 12);
-      this.directionPadButton('◀', 'left', 14, 60);
-      this.directionPadButton('▶', 'right', 106, 60);
-      this.directionPadButton('▼', 'down', 60, 106);
+      this.directionPadButton('up', 42, 0, 44, 46);
+      this.directionPadButton('left', 0, 42, 46, 44);
+      this.directionPadButton('right', 82, 42, 46, 44);
+      this.directionPadButton('down', 42, 82, 44, 46);
       this.stopDirectionButton();
     }
-    .width(164)
-    .height(164);
+    .width(128)
+    .height(128)
+    .margin({ top: 8 });
   }
 
   @Builder
-  directionPadButton(label: string, direction: string, x: number, y: number) {
-    Column() {
-      Text(label)
-        .fontSize(18)
-        .fontWeight(FontWeight.Bold)
-        .fontColor(this.directionState === direction ? '#22C7C7' : '#607675');
-    }
-      .width(44)
-      .height(44)
-      .justifyContent(FlexAlign.Center)
-      .alignItems(HorizontalAlign.Center)
-      .backgroundColor(this.directionState === direction ? '#DDF7F4' : 'rgba(255,255,255,0.72)')
-      .borderRadius(22)
+  directionPadButton(direction: string, x: number, y: number, width: number, height: number) {
+    Column()
+      .width(width)
+      .height(height)
+      .backgroundColor('rgba(255,255,255,0.01)')
       .position({ x: x, y: y })
       .onClick(() => {
         this.changeDirection(direction);
@@ -847,19 +841,12 @@ struct Home {
 
   @Builder
   stopDirectionButton() {
-    Column() {
-      Text('停')
-        .fontSize(13)
-        .fontWeight(FontWeight.Medium)
-        .fontColor(this.directionState === 'stop' ? '#22C7C7' : '#607675');
-    }
-    .width(44)
-    .height(44)
-    .justifyContent(FlexAlign.Center)
-    .alignItems(HorizontalAlign.Center)
-    .backgroundColor(this.directionState === 'stop' ? '#DDF7F4' : 'rgba(255,255,255,0.86)')
-    .borderRadius(22)
-    .position({ x: 60, y: 60 })
+    Column()
+    .width(42)
+    .height(42)
+    .backgroundColor('rgba(255,255,255,0.01)')
+    .borderRadius(21)
+    .position({ x: 43, y: 43 })
     .onClick(() => {
       this.stopCar();
     });
@@ -1114,7 +1101,7 @@ struct Home {
           .margin({ top: 20 });
 
           this.mineRow($r('app.media.ic_car_active'), '绑定车辆', this.carVin.length > 0 ? this.carVin : '未绑定', () => {
-            router.replaceUrl({ url: 'pages/BindCar' });
+            router.replaceUrl({ url: AppRoutes.BIND_CAR });
           });
 
           this.mineRow($r('app.media.ic_feedback_active'), '我的反馈', `${this.feedbackList.length} 条记录`, () => {
@@ -1489,10 +1476,10 @@ struct Home {
       return;
     }
 
-    preferences.getPreferences(getContext(this), 'userStore').then(pref => {
-      pref.putSync('nickName', nextNickName);
-      pref.putSync('phonenumber', nextPhone);
-      pref.putSync('birthDate', nextBirthDate);
+    preferences.getPreferences(getContext(this), USER_STORE_NAME).then(pref => {
+      pref.putSync(PreferenceKeys.NICK_NAME, nextNickName);
+      pref.putSync(PreferenceKeys.PHONE_NUMBER, nextPhone);
+      pref.putSync(PreferenceKeys.BIRTH_DATE, nextBirthDate);
       pref.flushSync();
       this.nickName = nextNickName;
       this.phonenumber = nextPhone;
@@ -2249,32 +2236,32 @@ struct Home {
   }
 
   private logout(): void {
-    preferences.getPreferences(getContext(this), 'userStore').then(pref => {
-      pref.putSync('isLogin', false);
-      pref.putSync('isCarBound', false);
-      pref.putSync('token', '');
-      pref.putSync('username', '');
-      pref.putSync('userId', '');
-      pref.putSync('carVin', '');
-      pref.putSync('carId', '');
-      pref.putSync('nickName', '');
-      pref.putSync('phonenumber', '');
-      pref.putSync('birthDate', '');
+    preferences.getPreferences(getContext(this), USER_STORE_NAME).then(pref => {
+      pref.putSync(PreferenceKeys.IS_LOGIN, false);
+      pref.putSync(PreferenceKeys.IS_CAR_BOUND, false);
+      pref.putSync(PreferenceKeys.TOKEN, '');
+      pref.putSync(PreferenceKeys.USERNAME, '');
+      pref.putSync(PreferenceKeys.USER_ID, '');
+      pref.putSync(PreferenceKeys.CAR_VIN, '');
+      pref.putSync(PreferenceKeys.CAR_ID, '');
+      pref.putSync(PreferenceKeys.NICK_NAME, '');
+      pref.putSync(PreferenceKeys.PHONE_NUMBER, '');
+      pref.putSync(PreferenceKeys.BIRTH_DATE, '');
       pref.flushSync();
-      router.replaceUrl({ url: 'pages/Index' });
+      router.replaceUrl({ url: AppRoutes.INDEX });
     });
   }
 
   private ensureVehicleReady(): boolean {
     if (this.token.length === 0) {
       this.showToast('登录状态已失效，请重新登录');
-      router.replaceUrl({ url: 'pages/Index' });
+      router.replaceUrl({ url: AppRoutes.INDEX });
       return false;
     }
 
     if (this.carId.length === 0 || this.carVin.length === 0) {
       this.showToast('车辆信息不完整，请重新绑定车辆');
-      router.replaceUrl({ url: 'pages/BindCar' });
+      router.replaceUrl({ url: AppRoutes.BIND_CAR });
       return false;
     }
 
@@ -2624,18 +2611,11 @@ struct Home {
   }
 
   private showToast(message: string): void {
-    promptAction.openToast({
-      message,
-      duration: 2000
-    }).catch(() => {
-    });
+    AppPrompt.showToast(message);
   }
 
   private getErrorMessage(error: Object): string {
-    if (error instanceof Error) {
-      return error.message;
-    }
-    return '操作失败，请稍后重试';
+    return AppPrompt.getErrorMessage(error);
   }
 
   @Builder

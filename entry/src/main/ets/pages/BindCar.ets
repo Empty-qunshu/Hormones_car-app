@@ -1,8 +1,10 @@
 import router from '@ohos.router';
 import preferences from '@ohos.data.preferences';
 import common from '@ohos.app.ability.common';
-import { promptAction } from '@kit.ArkUI';
+import { AppRoutes, PreferenceKeys, USER_STORE_NAME } from './AppConstants';
+import { AppPrompt } from './AppPrompt';
 import { AuthApi } from './AuthApi';
+import { AppTopBar, PlainInfoRow } from './CommonWidgets';
 
 @Entry
 @Component
@@ -15,28 +17,13 @@ export struct BindCar {
 
   build() {
     Column() {
-      Row() {
-        Image($r('app.media.ic_back'))
-          .width(24)
-          .height(24)
-          .onClick(() => {
-            router.back();
-          });
-
-        Blank();
-
-        Text('绑定车辆')
-          .fontSize(18)
-          .fontWeight(FontWeight.Medium)
-          .fontColor('#111827')
-          .textAlign(TextAlign.Center);
-
-        Blank()
-          .width(24);
-      }
-      .width('100%')
-      .height(56)
-      .padding({ left: 16, right: 16 });
+      AppTopBar({
+        title: '绑定车辆',
+        showBack: true,
+        onBack: () => {
+          router.back();
+        }
+      });
 
       Scroll() {
         Column({ space: 18 }) {
@@ -123,31 +110,15 @@ export struct BindCar {
           .shadow({ radius: 8, color: '#0000000F', offsetX: 0, offsetY: 2 });
 
           Column({ space: 10 }) {
-            Row() {
-              Text('云端校验')
-                .fontSize(14)
-                .fontColor('#6B7280');
+            PlainInfoRow({
+              label: '云端校验',
+              value: '绑定成功后自动同步车辆状态'
+            });
 
-              Blank();
-
-              Text('绑定成功后自动同步车辆状态')
-                .fontSize(14)
-                .fontColor('#111827');
-            }
-            .width('100%');
-
-            Row() {
-              Text('数据权限')
-                .fontSize(14)
-                .fontColor('#6B7280');
-
-              Blank();
-
-              Text('仅保存账号、车辆与 Token')
-                .fontSize(14)
-                .fontColor('#111827');
-            }
-            .width('100%');
+            PlainInfoRow({
+              label: '数据权限',
+              value: '仅保存账号、车辆与 Token'
+            });
           }
           .width('88%')
           .padding(18)
@@ -212,11 +183,11 @@ export struct BindCar {
 
     this.isSubmitting = true;
     try {
-      const pref = await preferences.getPreferences(this.context, 'userStore');
-      const token = pref.getSync('token', '') as string;
+      const pref = await preferences.getPreferences(this.context, USER_STORE_NAME);
+      const token = pref.getSync(PreferenceKeys.TOKEN, '') as string;
       if (!token) {
         this.showError('登录状态已失效，请重新登录');
-        router.replaceUrl({ url: 'pages/Index' });
+        router.replaceUrl({ url: AppRoutes.INDEX });
         return;
       }
 
@@ -230,18 +201,18 @@ export struct BindCar {
       const latestCarVin = userInfo.carVin ?? carVin;
       const latestCarId = userInfo.carId ?? '';
 
-      await pref.put('isCarBound', latestCarVin.length > 0);
-      await pref.put('carVin', latestCarVin);
-      await pref.put('carId', latestCarId);
-      await pref.put('userId', userInfo.user?.userId ?? '');
-      await pref.put('nickName', userInfo.user?.nickName ?? '');
-      await pref.put('phonenumber', userInfo.user?.phonenumber ?? '');
-      await pref.put('birthDate', userInfo.user?.birthDate ?? '');
+      await pref.put(PreferenceKeys.IS_CAR_BOUND, latestCarVin.length > 0);
+      await pref.put(PreferenceKeys.CAR_VIN, latestCarVin);
+      await pref.put(PreferenceKeys.CAR_ID, latestCarId);
+      await pref.put(PreferenceKeys.USER_ID, userInfo.user?.userId ?? '');
+      await pref.put(PreferenceKeys.NICK_NAME, userInfo.user?.nickName ?? '');
+      await pref.put(PreferenceKeys.PHONE_NUMBER, userInfo.user?.phonenumber ?? '');
+      await pref.put(PreferenceKeys.BIRTH_DATE, userInfo.user?.birthDate ?? '');
       await pref.flush();
 
       this.showToast(result.msg ?? '绑定成功');
       router.replaceUrl({
-        url: 'pages/BindSuccess'
+        url: AppRoutes.BIND_SUCCESS
       });
     } catch (error) {
       this.showError(this.getErrorMessage(error));
@@ -256,17 +227,10 @@ export struct BindCar {
   }
 
   private showToast(message: string) {
-    promptAction.openToast({
-      message,
-      duration: 2000
-    }).catch(() => {
-    });
+    AppPrompt.showToast(message);
   }
 
   private getErrorMessage(error: Object): string {
-    if (error instanceof Error) {
-      return error.message;
-    }
-    return '操作失败，请稍后重试';
+    return AppPrompt.getErrorMessage(error);
   }
 }

@@ -1,6 +1,7 @@
 import router from '@ohos.router';
 import preferences from '@ohos.data.preferences';
-import { promptAction } from '@kit.ArkUI';
+import { AppRoutes, PreferenceKeys, USER_STORE_NAME } from './AppConstants';
+import { AppPrompt } from './AppPrompt';
 import { AuthApi, RegisterParams } from './AuthApi';
 
 @Entry
@@ -14,7 +15,7 @@ struct Index {
   private pref: preferences.Preferences | null = null;
 
   aboutToAppear() {
-    preferences.getPreferences(getContext(this), 'userStore')
+    preferences.getPreferences(getContext(this), USER_STORE_NAME)
       .then((data) => {
         this.pref = data;
         this.checkLoginStatus();
@@ -22,26 +23,26 @@ struct Index {
   }
 
   checkLoginStatus() {
-    const loginState = this.pref?.getSync('isLogin', false);
-    const carBoundState = this.pref?.getSync('isCarBound', false);
+    const loginState = this.pref?.getSync(PreferenceKeys.IS_LOGIN, false);
+    const carBoundState = this.pref?.getSync(PreferenceKeys.IS_CAR_BOUND, false);
 
     if (loginState && carBoundState) {
       router.replaceUrl({
-        url: 'pages/Home'
+        url: AppRoutes.HOME
       });
     } else if (loginState && !carBoundState) {
       router.replaceUrl({
-        url: 'pages/BindCar'
+        url: AppRoutes.BIND_CAR
       });
     }
   }
 
   logout() {
     if (this.pref) {
-      this.pref.putSync('isLogin', false);
-      this.pref.putSync('isCarBound', false);
-      this.pref.putSync('token', '');
-      this.pref.putSync('username', '');
+      this.pref.putSync(PreferenceKeys.IS_LOGIN, false);
+      this.pref.putSync(PreferenceKeys.IS_CAR_BOUND, false);
+      this.pref.putSync(PreferenceKeys.TOKEN, '');
+      this.pref.putSync(PreferenceKeys.USERNAME, '');
       this.pref.flushSync();
       this.phone = '';
       this.password = '';
@@ -89,21 +90,21 @@ struct Index {
       const carVin = userInfo.carVin ?? '';
       const carId = userInfo.carId ?? '';
 
-      this.pref?.putSync('isLogin', true);
-      this.pref?.putSync('token', result.token);
-      this.pref?.putSync('username', this.phone);
-      this.pref?.putSync('isCarBound', carVin.length > 0);
-      this.pref?.putSync('carVin', carVin);
-      this.pref?.putSync('carId', carId);
-      this.pref?.putSync('userId', userInfo.user?.userId ?? '');
-      this.pref?.putSync('nickName', userInfo.user?.nickName ?? '');
-      this.pref?.putSync('phonenumber', userInfo.user?.phonenumber ?? '');
-      this.pref?.putSync('birthDate', userInfo.user?.birthDate ?? '');
+      this.pref?.putSync(PreferenceKeys.IS_LOGIN, true);
+      this.pref?.putSync(PreferenceKeys.TOKEN, result.token);
+      this.pref?.putSync(PreferenceKeys.USERNAME, this.phone);
+      this.pref?.putSync(PreferenceKeys.IS_CAR_BOUND, carVin.length > 0);
+      this.pref?.putSync(PreferenceKeys.CAR_VIN, carVin);
+      this.pref?.putSync(PreferenceKeys.CAR_ID, carId);
+      this.pref?.putSync(PreferenceKeys.USER_ID, userInfo.user?.userId ?? '');
+      this.pref?.putSync(PreferenceKeys.NICK_NAME, userInfo.user?.nickName ?? '');
+      this.pref?.putSync(PreferenceKeys.PHONE_NUMBER, userInfo.user?.phonenumber ?? '');
+      this.pref?.putSync(PreferenceKeys.BIRTH_DATE, userInfo.user?.birthDate ?? '');
       this.pref?.flushSync();
 
       this.showToast(result.msg ?? '登录成功');
       router.replaceUrl({
-        url: carVin.length > 0 ? 'pages/Home' : 'pages/BindCar'
+        url: carVin.length > 0 ? AppRoutes.HOME : AppRoutes.BIND_CAR
       });
     } catch (error) {
       this.showToast(this.getErrorMessage(error));
@@ -329,17 +330,10 @@ struct Index {
   }
 
   private showToast(message: string) {
-    promptAction.openToast({
-      message,
-      duration: 2000
-    }).catch(() => {
-    });
+    AppPrompt.showToast(message);
   }
 
   private getErrorMessage(error: Object): string {
-    if (error instanceof Error) {
-      return error.message;
-    }
-    return '操作失败，请稍后重试';
+    return AppPrompt.getErrorMessage(error);
   }
 }

@@ -1,6 +1,8 @@
 import preferences from '@ohos.data.preferences';
-import { promptAction } from '@kit.ArkUI';
+import { PreferenceKeys, USER_STORE_NAME } from './AppConstants';
+import { AppPrompt } from './AppPrompt';
 import { AuthApi, FeedbackItem } from './AuthApi';
+import { DetailCard } from './CommonWidgets';
 
 @Component
 export struct Feedback_details {
@@ -75,14 +77,26 @@ export struct Feedback_details {
           .borderRadius(8)
           .shadow({ radius: 8, color: '#0000000F', offsetX: 0, offsetY: 2 });
 
-          this.detailCard('反馈内容', this.feedback.content ?? (this.isLoading ? '加载中...' : '暂无反馈内容'));
+          DetailCard({
+            title: '反馈内容',
+            content: this.feedback.content ?? (this.isLoading ? '加载中...' : '暂无反馈内容')
+          });
 
-          this.detailCard('处理状态', this.getStatusText());
+          DetailCard({
+            title: '处理状态',
+            content: this.getStatusText()
+          });
 
           if (this.hasReply()) {
-            this.detailCard('回复内容', this.feedback.reply ?? '');
+            DetailCard({
+              title: '回复内容',
+              content: this.feedback.reply ?? ''
+            });
           } else {
-            this.detailCard('处理建议', '反馈已进入列表，你可以稍后刷新查看处理结果。');
+            DetailCard({
+              title: '处理建议',
+              content: '反馈已进入列表，你可以稍后刷新查看处理结果。'
+            });
           }
         }
         .width('100%')
@@ -122,27 +136,6 @@ export struct Feedback_details {
     .backgroundColor('#F5F7FA');
   }
 
-  @Builder
-  detailCard(title: string, content: string) {
-    Column({ space: 10 }) {
-      Text(title)
-        .fontSize(14)
-        .fontColor('#6B7280')
-        .width('100%');
-
-      Text(content)
-        .fontSize(16)
-        .fontColor('#111827')
-        .lineHeight(24)
-        .width('100%');
-    }
-    .width('88%')
-    .padding(16)
-    .backgroundColor(Color.White)
-    .borderRadius(8)
-    .shadow({ radius: 8, color: '#0000000F', offsetX: 0, offsetY: 2 });
-  }
-
   private async loadFeedbackDetail(): Promise<void> {
     if (this.feedbackId.length === 0 || this.isLoading) {
       return;
@@ -150,8 +143,8 @@ export struct Feedback_details {
 
     this.isLoading = true;
     try {
-      const pref = await preferences.getPreferences(getContext(this), 'userStore');
-      const token = pref.getSync('token', '') as string;
+      const pref = await preferences.getPreferences(getContext(this), USER_STORE_NAME);
+      const token = pref.getSync(PreferenceKeys.TOKEN, '') as string;
       if (token.length === 0) {
         this.showToast('登录状态已失效，请重新登录');
         return;
@@ -186,8 +179,8 @@ export struct Feedback_details {
 
     this.isDeleting = true;
     try {
-      const pref = await preferences.getPreferences(getContext(this), 'userStore');
-      const token = pref.getSync('token', '') as string;
+      const pref = await preferences.getPreferences(getContext(this), USER_STORE_NAME);
+      const token = pref.getSync(PreferenceKeys.TOKEN, '') as string;
       if (token.length === 0) {
         this.showToast('登录状态已失效，请重新登录');
         return;
@@ -225,17 +218,10 @@ export struct Feedback_details {
   }
 
   private showToast(message: string): void {
-    promptAction.openToast({
-      message,
-      duration: 2000
-    }).catch(() => {
-    });
+    AppPrompt.showToast(message);
   }
 
   private getErrorMessage(error: Object): string {
-    if (error instanceof Error) {
-      return error.message;
-    }
-    return '操作失败，请稍后重试';
+    return AppPrompt.getErrorMessage(error);
   }
 }
