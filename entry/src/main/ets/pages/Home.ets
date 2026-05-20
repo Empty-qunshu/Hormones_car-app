@@ -25,6 +25,8 @@ interface SceneSnapshot {
   nightMode: boolean;
 }
 
+const DIRECTION_REPEAT_INTERVAL_MS: number = 300;
+
 @Entry
 @Component
 struct Home {
@@ -79,6 +81,9 @@ struct Home {
   @State sceneEffect: string = '点击场景卡片，一键联动车门、车灯与空调';
   private localLogSeed: number = 0;
   private stateRefreshTimerId: number = -1;
+  private directionHoldTimerId: number = -1;
+  private activeDirection: string = '';
+  private directionCommandInFlight: Promise<void> | null = null;
   navPathStack: NavPathStack = new NavPathStack();
 
   aboutToAppear() {
@@ -113,6 +118,7 @@ struct Home {
 
   aboutToDisappear() {
     this.stopVehicleStatePolling();
+    this.stopDirectionHold();
   }
 
   build() {
@@ -834,8 +840,13 @@ struct Home {
       .height(height)
       .backgroundColor('rgba(255,255,255,0.01)')
       .position({ x: x, y: y })
-      .onClick(() => {
-        this.changeDirection(direction);
+      .onTouch((event: TouchEvent) => {
+        if (event.type === TouchType.Down) {
+          this.startDirectionHold(direction);
+        }
+        if (event.type === TouchType.Up || event.type === TouchType.Cancel) {
+          this.stopDirectionHold();
+        }
       });
   }
 
@@ -848,6 +859,7 @@ struct Home {
     .borderRadius(21)
     .position({ x: 43, y: 43 })
     .onClick(() => {
+      this.stopDirectionHold(false);
       this.stopCar();
     });
   }
@@ -2127,50 +2139,108 @@ struct Home {
     this.sendDirectionCommand(direction, previousDirection);
   }
 
-  private async sendDirectionCommand(direction: string, previousDirection: string): Promise<void> {
-    if (!this.ensureVehicleReady()) {
-      this.directionState = previousDirection;
+  private startDirectionHold(direction: string): void {
+    if (this.activeDirection === direction && this.directionHoldTimerId !== -1) {
       return;
     }
 
-    this.addLocalControlLog('车辆移动', this.getDirectionCommandLabel(direction));
-    this.refreshControlLogsSoon();
+    this.stopDirectionHold(false);
+    const previousDirection = this.directionState;
+    this.activeDirection = direction;
+    this.directionState = direction;
+    this.sendDirectionCommand(direction, previousDirection, true);
 
-    try {
-      if (direction === 'up') {
-        const result = await AuthApi.controlMove(this.token, this.carId);
-        if (!this.handleApiResult(result, '车辆前进指令已发送')) {
-          this.directionState = previousDirection;
-        }
-        return;
-      }
-      if (direction === 'down') {
-        const result = await AuthApi.controlBack(this.token, this.carId);
-        if (!this.handleApiResult(result, '车辆后退指令已发送')) {
-          this.directionState = previousDirection;
-        }
-        return;
-      }
-      if (direction === 'left') {
-        const result = await AuthApi.controlLeft(this.token, this.carId);
-        if (!this.handleApiResult(result, '车辆左转指令已发送')) {
-          this.directionState = previousDirection;
-        }
-        return;
-      }
-      if (direction === 'right') {
-        const result = await AuthApi.controlRight(this.token, this.carId);
-        if (!this.handleApiResult(result, '车辆右转指令已发送')) {
-          this.directionState = previousDirection;
-        }
-      }
-    } catch (error) {
-      this.directionState = previousDirection;
-      this.showToast(this.getErrorMessage(error));
+    this.directionHoldTimerId = setInterval(() => {
+      this.sendDirectionCommand(direction, previousDirection, false);
+    }, DIRECTION_REPEAT_INTERVAL_MS);
+  }
+
+  private stopDirectionHold(shouldSendStop: boolean = true): void {
+    const hadActiveDirection = this.activeDirection.length > 0 || this.directionHoldTimerId !== -1;
+    this.clearDirectionHoldTimer();
+    this.activeDirection = '';
+
+    if (shouldSendStop && hadActiveDirection) {
+      this.stopCar(true, false);
     }
   }
 
-  private async stopCar(): Promise<void> {
+  private clearDirectionHoldTimer(): void {
+    if (this.directionHoldTimerId !== -1) {
+      clearInterval(this.directionHoldTimerId);
+      this.directionHoldTimerId = -1;
+    }
+  }
+
+  private async sendDirectionCommand(direction: string, previousDirection: string,
+    shouldRecordLog: boolean = true): Promise<void> {
+    if (!this.ensureVehicleReady()) {
+      this.directionState = previousDirection;
+      this.stopDirectionHold(false);
+      return;
+    }
+
+    if (this.directionCommandInFlight) {
+      return;
+    }
+
+    if (shouldRecordLog) {
+      this.addLocalControlLog('车辆移动', this.getDirectionCommandLabel(direction));
+      this.refreshControlLogsSoon();
+    }
+
+    const commandTask = this.executeDirectionCommand(direction, previousDirection);
+    this.directionCommandInFlight = commandTask;
+    try {
+      await commandTask;
+    } catch (error) {
+      this.restoreDirectionAfterFailure(direction, previousDirection);
+      this.stopDirectionHold(false);
+      this.showToast(this.getErrorMessage(error));
+    } finally {
+      if (this.directionCommandInFlight === commandTask) {
+        this.directionCommandInFlight = null;
+      }
+    }
+  }
+
+  private async executeDirectionCommand(direction: string, previousDirection: string): Promise<void> {
+    if (direction === 'up') {
+      const result = await AuthApi.controlMove(this.token, this.carId);
+      if (!this.handleApiResult(result, '车辆前进指令已发送')) {
+        this.restoreDirectionAfterFailure(direction, previousDirection);
+      }
+      return;
+    }
+    if (direction === 'down') {
+      const result = await AuthApi.controlBack(this.token, this.carId);
+      if (!this.handleApiResult(result, '车辆后退指令已发送')) {
+        this.restoreDirectionAfterFailure(direction, previousDirection);
+      }
+      return;
+    }
+    if (direction === 'left') {
+      const result = await AuthApi.controlLeft(this.token, this.carId);
+      if (!this.handleApiResult(result, '车辆左转指令已发送')) {
+        this.restoreDirectionAfterFailure(direction, previousDirection);
+      }
+      return;
+    }
+    if (direction === 'right') {
+      const result = await AuthApi.controlRight(this.token, this.carId);
+      if (!this.handleApiResult(result, '车辆右转指令已发送')) {
+        this.restoreDirectionAfterFailure(direction, previousDirection);
+      }
+    }
+  }
+
+  private restoreDirectionAfterFailure(direction: string, previousDirection: string): void {
+    if (this.activeDirection === direction || this.directionState === direction) {
+      this.directionState = previousDirection;
+    }
+  }
+
+  private async stopCar(waitForDirectionCommand: boolean = false, restoreOnFailure: boolean = true): Promise<void> {
     const previousDirection = this.directionState;
     this.directionState = 'stop';
     if (!this.ensureVehicleReady()) {
@@ -2182,12 +2252,18 @@ struct Home {
     this.refreshControlLogsSoon();
 
     try {
+      if (waitForDirectionCommand && this.directionCommandInFlight) {
+        await this.directionCommandInFlight;
+      }
+
       const result = await AuthApi.controlStop(this.token, this.carId);
-      if (!this.handleApiResult(result, '停车指令已发送')) {
+      if (!this.handleApiResult(result, '停车指令已发送') && restoreOnFailure) {
         this.directionState = previousDirection;
       }
     } catch (error) {
-      this.directionState = previousDirection;
+      if (restoreOnFailure) {
+        this.directionState = previousDirection;
+      }
       this.showToast(this.getErrorMessage(error));
     }
   }
